@@ -15,7 +15,9 @@
  */
 package com.rovio.ingest;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.rovio.ingest.model.Field;
+import com.rovio.ingest.model.FieldType;
 import com.rovio.ingest.model.SegmentSpec;
 import com.rovio.ingest.util.ReflectionUtils;
 import com.rovio.ingest.util.SegmentStorageUpdater;
@@ -30,6 +32,7 @@ import org.apache.druid.segment.IndexIO;
 import org.apache.druid.segment.IndexMerger;
 import org.apache.druid.segment.IndexMergerV9;
 import org.apache.druid.segment.IndexSpec;
+import org.apache.druid.segment.column.ColumnConfig;
 import org.apache.druid.segment.data.BitmapSerdeFactory;
 import org.apache.druid.segment.data.ConciseBitmapSerdeFactory;
 import org.apache.druid.segment.data.RoaringBitmapSerdeFactory;
@@ -37,18 +40,16 @@ import org.apache.druid.segment.indexing.DataSchema;
 import org.apache.druid.segment.indexing.RealtimeTuningConfig;
 import org.apache.druid.segment.loading.DataSegmentKiller;
 import org.apache.druid.segment.loading.DataSegmentPusher;
+import org.apache.druid.segment.nested.StructuredData;
 import org.apache.druid.segment.realtime.FireDepartmentMetrics;
-import org.apache.druid.segment.realtime.appenderator.Appenderator;
-import org.apache.druid.segment.realtime.appenderator.DefaultOfflineAppenderatorFactory;
-import org.apache.druid.segment.realtime.appenderator.SegmentIdWithShardSpec;
-import org.apache.druid.segment.realtime.appenderator.SegmentNotWritableException;
-import org.apache.druid.segment.realtime.appenderator.SegmentsAndCommitMetadata;
+import org.apache.druid.segment.realtime.appenderator.*;
 import org.apache.druid.segment.realtime.plumber.Committers;
 import org.apache.druid.segment.realtime.plumber.CustomVersioningPolicy;
 import org.apache.druid.segment.writeout.TmpFileSegmentWriteOutMediumFactory;
 import org.apache.druid.timeline.DataSegment;
 import org.apache.druid.timeline.partition.LinearShardSpec;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.connector.write.DataWriter;
 import org.apache.spark.sql.connector.write.WriterCommitMessage;
 import org.apache.spark.sql.types.DataType;
@@ -62,19 +63,14 @@ import java.io.File;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Supplier;
 
 import static com.rovio.ingest.DataSegmentCommitMessage.MAPPER;
 
 class TaskDataWriter implements DataWriter<InternalRow> {
-    private static final IndexIO INDEX_IO = new IndexIO(MAPPER, () -> 0);
+    private static final IndexIO INDEX_IO = new IndexIO(MAPPER, ColumnConfig.DEFAULT);
     private static final IndexMerger INDEX_MERGER_V_9 = new IndexMergerV9(MAPPER, INDEX_IO, TmpFileSegmentWriteOutMediumFactory.instance());
     private static final Logger LOG = LoggerFactory.getLogger(TaskDataWriter.class);
 
@@ -112,7 +108,7 @@ class TaskDataWriter implements DataWriter<InternalRow> {
         this.appenderator.startJob();
 
         try {
-            ReflectionUtils.setStaticFieldValue(NullHandling.class, "INSTANCE", new NullValueHandlingConfig(context.isUseDefaultValueForNull(), null));
+            ReflectionUtils.setStaticFieldValue(NullHandling.class, "INSTANCE", new NullValueHandlingConfig(context.isUseDefaultValueForNull(), context.isUseThreeValueLogicForNativeFilters(), null));
         } catch (NoSuchFieldException | IllegalAccessException e) {
             throw new IllegalStateException("Unable to set null handling!!", e);
         }
@@ -216,6 +212,40 @@ class TaskDataWriter implements DataWriter<InternalRow> {
                     // Convert to Java String as Spark return UTF8String which is not compatible with Druid sketches.
                     value = value.toString();
                 }
+                if (value != null && segmentSpec.getComplexDimensionColumns().contains(columnName) && sqlType == DataTypes.StringType) {
+                    try {
+                        value = MAPPER.readValue(value.toString(), StructuredData.class);
+                    } catch (JsonProcessingException e) {
+                        value = null;
+                    }
+                }
+                if (value != null && field.getFieldType() == FieldType.ARRAY_OF_STRING) {
+                    ArrayData arrayData = record.getArray(field.getOrdinal());
+                    int arraySize = arrayData.numElements();
+                    List<String> valueArrayOfString = new ArrayList<>(arraySize);
+                    for (int i = 0; i < arraySize; i++) {
+                        valueArrayOfString.add(arrayData.get(i, DataTypes.StringType).toString());
+                    }
+                    value = valueArrayOfString;
+                }
+                if (value != null && field.getFieldType()== FieldType.ARRAY_OF_DOUBLE) {
+                    ArrayData arrayData = record.getArray(field.getOrdinal());
+                    int arraySize = arrayData.numElements();
+                    Double[] valueArrayOfFloat = new Double[arraySize];
+                    for (int i = 0; i < arraySize; i++) {
+                        valueArrayOfFloat[i] = (Double) arrayData.get(i, DataTypes.DoubleType);
+                    }
+                    value = valueArrayOfFloat;
+                }
+                if (value != null && field.getFieldType()== FieldType.ARRAY_OF_LONG) {
+                    ArrayData arrayData = record.getArray(field.getOrdinal());
+                    int arraySize = arrayData.numElements();
+                    Long[] valueArrayOfLong = new Long[arraySize];
+                    for (int i = 0; i < arraySize; i++) {
+                        valueArrayOfLong[i] = (Long) arrayData.get(i, DataTypes.LongType);
+                    }
+                    value = valueArrayOfLong;
+                }
                 map.put(columnName, value);
             }
         }
@@ -270,7 +300,7 @@ class TaskDataWriter implements DataWriter<InternalRow> {
                 null,
                 null,
                 null,
-                new IndexSpec(getBitmapSerdeFactory(context), null, null, null),
+                new IndexSpec(getBitmapSerdeFactory(context), null, null, null, null, null, null),
                 null,
                 0,
                 0,
@@ -287,7 +317,7 @@ class TaskDataWriter implements DataWriter<InternalRow> {
             case "concise":
                 return new ConciseBitmapSerdeFactory();
             case "roaring":
-                return new RoaringBitmapSerdeFactory(true);
+                return RoaringBitmapSerdeFactory.getInstance();
         }
         throw new IllegalArgumentException(
                 "Unknown bitmap factory: '" + context.getBitmapFactory() + "'");

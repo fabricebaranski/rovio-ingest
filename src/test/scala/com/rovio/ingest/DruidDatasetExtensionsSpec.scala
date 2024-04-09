@@ -21,25 +21,27 @@ import com.rovio.ingest.model.DbType
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{Dataset, SaveMode, SparkSession}
 import org.junit.runner.RunWith
-import org.scalatest.junit.JUnitRunner
+import org.scalatest.matchers.should.Matchers
+import org.scalatestplus.junit.JUnitRunner
+import org.scalatest.flatspec.AnyFlatSpec
 
 // must define classes outside of the actual test methods, otherwise spark can't find them
 case class KpiRow(date: String, country: String, dau: Integer, revenue: Double, is_segmented: Boolean)
-case class RowWithUnsupportedType(date: String, country: String, dau: Integer, labels: Array[String])
+case class RowWithUnsupportedType(date: String, country: String, dau: Integer, values: Array[Long])
 case class PartitionedRow(date: String, country: String, dau: Integer, revenue: Double, `__PARTITION_NUM__`: Integer)
 case class ExpectedRow(`__PARTITION_TIME__`: String, `__PARTITION_NUM__`: Integer, count: Integer)
 
 // This is needed for mvn test. It wouldn't find this test otherwise.
 @RunWith(classOf[JUnitRunner])
-class DruidDatasetExtensionsSpec extends FlatSpec with Matchers with BeforeAndAfter with BeforeAndAfterEach {
+class DruidDatasetExtensionsSpec extends AnyFlatSpec with Matchers with BeforeAndAfter with BeforeAndAfterEach {
 
   before {
-    DruidSourceBaseTest.MYSQL.start()
-    DruidSourceBaseTest.prepareDatabase(DruidSourceBaseTest.MYSQL)
+    DruidSourceBaseTest.PGSQL.start()
+    DruidSourceBaseTest.prepareDatabase(DruidSourceBaseTest.PGSQL)
   }
 
   after {
-    DruidSourceBaseTest.MYSQL.stop()
+    DruidSourceBaseTest.PGSQL.stop()
   }
 
   // Could instead try assertSmallDataFrameEquality from
@@ -219,7 +221,7 @@ class DruidDatasetExtensionsSpec extends FlatSpec with Matchers with BeforeAndAf
 
   it should "exclude columns with unsupported types" in {
     val ds = Seq(RowWithUnsupportedType(
-      date="2019-10-17", country="US", dau=50, labels=Array("A", "B"))).toDS
+      date="2019-10-17", country="US", dau=50, values=Array(1L, 2L))).toDS
       .withColumn("date", 'date.cast(DataTypes.TimestampType))
     val result = ds.repartitionByDruidSegmentSize("date", "DAY", 2, excludeColumnsWithUnknownTypes = true)
 
@@ -235,7 +237,7 @@ class DruidDatasetExtensionsSpec extends FlatSpec with Matchers with BeforeAndAf
 
   it should "throw exception from unsupported types by default" in {
     val ds = Seq(RowWithUnsupportedType(
-      date="2019-10-17", country="US", dau=50, labels=Array("A", "B"))).toDS
+      date="2019-10-17", country="US", dau=50, values=Array(1L, 2L))).toDS
       .withColumn("date", 'date.cast(DataTypes.TimestampType))
     assertThrows[IllegalArgumentException] {
       ds.repartitionByDruidSegmentSize("date", "DAY", 2)
@@ -244,13 +246,13 @@ class DruidDatasetExtensionsSpec extends FlatSpec with Matchers with BeforeAndAf
 
   it should "save the dataset to druid" in {
 
-    DruidSourceBaseTest.setUpDb(DruidSourceBaseTest.MYSQL)
+    DruidSourceBaseTest.setUpDb(DruidSourceBaseTest.PGSQL)
 
     // create Data source options
     val options = Map[String, String](
       ConfKeys.DEEP_STORAGE_LOCAL_DIRECTORY -> "/tmp/local_segments",
-      ConfKeys.METADATA_DB_TYPE -> DbType.Mysql.name(),
-      ConfKeys.METADATA_DB_URI -> DruidSourceBaseTest.getConnectionString(DruidSourceBaseTest.MYSQL),
+      ConfKeys.METADATA_DB_TYPE -> DbType.Postgres.name(),
+      ConfKeys.METADATA_DB_URI -> DruidSourceBaseTest.getConnectionString(DruidSourceBaseTest.PGSQL),
       ConfKeys.METADATA_DB_USERNAME -> DruidSourceBaseTest.dbUser,
       ConfKeys.METADATA_DB_PASSWORD -> DruidSourceBaseTest.dbPass,
       ConfKeys.DEEP_STORAGE_TYPE -> "local",

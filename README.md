@@ -13,11 +13,11 @@ For example, this allows reading an [Apache Hive™](https://hive.apache.org/) t
 - [Data type conversions](#data-type-conversions)
 - [Segment granularity](#segment-granularity)
 - [Usage](#usage)
-  - [No-Code wrapper script](#no-code-wrapper-script)
-  - [PySpark](#pyspark)
-  - [Scala](#scala)
-  - [Java](#java)
-  - [Write options](#write-options)
+    - [No-Code wrapper script](#no-code-wrapper-script)
+    - [PySpark](#pyspark)
+    - [Scala](#scala)
+    - [Java](#java)
+    - [Write options](#write-options)
 - [Limitations](#limitations)
 - [Development](#development)
 - [Building](#building)
@@ -36,7 +36,7 @@ Overview diagram:
 ## Software requirements
 
 rovio-ingest requires
-* Apache Spark 3* 
+* Apache Spark 3*
 * JDK8 (8u92+ or later).
 * Linux or MacOS.
 * Git repo must be cloned under a path that doesn't have spaces.
@@ -65,14 +65,14 @@ The Dataset extension performs the following validations:
 
 The Dataset extension performs the following transformations:
 * Drops all columns of complex datatypes such as `StructType`, `MapType` or `ArrayType` as they
-are not supported by `DruidSource`. This is only done if `excludeColumnsWithUnknownTypes` is set to true, otherwise validation has already failed.
+  are not supported by `DruidSource`. This is only done if `excludeColumnsWithUnknownTypes` is set to true, otherwise validation has already failed.
 * Converts `Date`/`Timestamp` type columns to `String`, except for the `time_column`
     - See [Druid Docs / Data types](https://druid.apache.org/docs/latest/querying/sql.html#standard-types)
 * Adds a new column `__PARTITION_TIME__` whose value is based on `time_column` column and the given [segment granularity](#segment-granularity)
-(applies
-[NormalizeTimeColumnUDF](src/main/java/com/rovio/ingest/util/NormalizeTimeColumnUDF.java))
+  (applies
+  [NormalizeTimeColumnUDF](src/main/java/com/rovio/ingest/util/NormalizeTimeColumnUDF.java))
 * Adds a new column `__PARTITION_NUM__` to denote partition shard which is
-`(row_number() - 1) / rows_per_segment` for each partition
+  `(row_number() - 1) / rows_per_segment` for each partition
 * Partitions the dataset with columns `__PARTITION_TIME__` & `__PARTITION_NUM__`
 
 So it returns a newly partitioned Dataset with columns `__PARTITION_TIME__` & `__PARTITION_NUM__`
@@ -87,7 +87,7 @@ The following type conversions are done on ingestion:
 
 ## Segment granularity
 
-For example, when the input `__time` is `2019-01-02`: 
+For example, when the input `__time` is `2019-01-02`:
 
 - if granularity = `DAY`, then time interval = `2019-01-02/2019-01-03`
 - if granularity = `MONTH`, then time interval = `2019-01-01/2019-02-01`
@@ -105,7 +105,7 @@ Code snippets for different languages are provided below.
 
 The main steps are always the same:
 1. The provided Dataset extension is first used to validate and repartition a Dataset so that it
-satisfies the requirements of `DruidSource`
+   satisfies the requirements of `DruidSource`
 1. Then the Dataset can be written with the `DruidSource` format
 
 ### No-Code wrapper script
@@ -206,14 +206,14 @@ A `Dataset[Row]` extension is provided to repartition the dataset for the `Druid
 For an interactive spark session you can set the following spark conf:
 
 ```scala
-("spark.jars.packages", "com.rovio.ingest:rovio-ingest:1.0.6_spark_3.0.1")
+("spark.jars.packages", "com.rovio.ingest:rovio-ingest:1.0.8_spark_3.4.1")
 ```
 
 To use a snapshot version:
 
 ```scala
 ("spark.jars.repositories", "https://s01.oss.sonatype.org/content/repositories/snapshots"),
-("spark.jars.packages", "com.rovio.ingest:rovio-ingest:1.0.7_spark_3.0.1-SNAPSHOT")
+("spark.jars.packages", "com.rovio.ingest:rovio-ingest:1.0.8_spark_3.4.1-SNAPSHOT")
 ```
 
 ```scala
@@ -249,7 +249,7 @@ Maven (for a full example, see [examples/rovio-ingest-maven-example](examples/ro
         <dependency>
             <groupId>com.rovio.ingest</groupId>
             <artifactId>rovio-ingest</artifactId>
-            <version>1.0.6_spark_3.0.1</version>
+            <version>1.0.8_spark_3.4.1</version>
         </dependency>
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
@@ -311,16 +311,40 @@ These are the options for `DruidSource`, to be passed with `write.options()`.
 
 1. **If Deep Storage is `s3` (default):**
 
-    | Property | Description |
-    | --- |--- |
-    | `druid.segment_storage.s3.bucket` | S3 bucket name for the Deep Storage | |
-    | `druid.segment_storage.s3.basekey` | S3 key prefix for the Deep Storage. No trailing slashes. | |
+   | Property | Description |
+       | --- |--- |
+   | `druid.segment_storage.s3.bucket` | S3 bucket name for the Deep Storage |
+   | `druid.segment_storage.s3.basekey` | S3 key prefix for the Deep Storage. No trailing slashes. |
 
 2. **If Deep Storage is `local`:**
 
-    | Property | Description |
-    | --- |--- |
-    | `druid.segment_storage.local.dir` | For local Deep Storage, absolute path to segment directory | |
+   | Property | Description |
+       | --- |--- |
+   | `druid.segment_storage.local.dir` | For local Deep Storage, absolute path to segment directory |
+
+3. **If Deep Storage is `hdfs`:**
+
+   | Property | Description |
+      | --- | --- |
+   | `druid.segment_storage.hdfs.dir` | For hdfs Deep Storage, absolute path to segment directory |
+   | `druid.segment_storage.hdfs.security.kerberos.principal` | kerberos principal |
+   | `druid.segment_storage.hdfs.security.kerberos.keytab` | kerberos keytab |
+
+4. **If Deep Storage is `azure`:**
+
+   | Property                               | Description |
+      |----------------------------------------|----|
+   | `druid.azure.account`                  | For azure Deep Storage, Azure account | |
+   | `druid.azure.key`                      | azure key                             | |
+   | `druid.azure.sharedAccessStorageToken` | azure token (if no key)               | |
+   | `druid.azure.useAzureCredentialsChain` | Use DefaultAzureCredential for authentication | |
+   | `druid.azure.managedIdentityClientId`  | If you want to use managed identity authentication in the DefaultAzureCredential, useAzureCredentialsChain must be true. | |
+   | `druid.azure.endpointSuffix`           | The endpoint suffix to use. Override the default value to connect to  | |
+   | `druid.azure.container`                | azure container                       | |
+   | `druid.azure.prefix`                   | azure prefix |
+   | `druid.azure.protocol`                 | azure protocol (http or https ) |
+   | `druid.azure.maxTries`                 | max tries to connect to azure |
+   | `druid.azure.maxListingLength`         | azure max listing length |
 
 #### Optional properties
 
@@ -333,9 +357,8 @@ These are the options for `DruidSource`, to be passed with `write.options()`.
 | `druid.exclude_dimensions` | Comma separated list of Spark input columns that have to be excluded in Druid ingestion | |
 | `druid.segment.max_rows` | Max number of rows per segment | `5000000` |
 | `druid.memory.max_rows` | Max number of rows to keep in memory in spark data writer | `75000` |
-| `druid.segment_storage.type` | Type of Deep Storage to use. Allowed values: `s3`, `local`, `hdfs`. | `s3` |
+| `druid.segment_storage.type` | Type of Deep Storage to use. Allowed values: `s3`, `local`. | `s3` |
 | `druid.segment_storage.s3.disableacl` | Whether to disable ACL in S3 config. | `false` |
-| `druid.segment_storage.hdfs.dir` | Hdfs segment storage location | `""` |
 | `druid.datasource.init` | Boolean flag for (re-)initializing Druid datasource. If `true`, any pre-existing segments for the datasource is marked as unused. | `false` |
 | `druid.bitmap_factory` | Compression format for bitmap indexes. Possible values: `concise`, `roaring`. For type `roaring`, the boolean property compressRunOnSerialization is always set to `true`. `rovio-ingest` uses `concise` by default regardless of Druid library version. | `concise` |
 | `druid.segment.rollup` | Whether to rollup data during ingestion | `true` |

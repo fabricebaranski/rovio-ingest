@@ -37,7 +37,6 @@ public class WriterContext implements Serializable {
     public static final String DEFAULT_DRUID_DEEP_STORAGE_TYPE = "s3";
     // concise was the default until now, next release it is going to change to roaring bitmapserde
     public static final String DEFAULT_BITMAP_FACTORY = "concise";
-
     private final String dataSource;
     private final String timeColumn;
     private final String segmentGranularity;
@@ -55,15 +54,32 @@ public class WriterContext implements Serializable {
     private final String s3BaseKey;
     private final boolean s3DisableAcl;
     private final String localDir;
+    private final String hdfsDir;
+    private final String hdfsCoreSitePath;
+    private final String hdfsHdfsSitePath;
+    private final String hdfsDefaultFS;
+    private final String hdfsSecurityKerberosPrincipal;
+    private final String hdfsSecurityKerberosKeytab;
+    private final String azureAccount;
+    private final String azureKey;
+    private final String azureSharedAccessStorageToken;
+    private final Boolean azureUseAzureCredentialsChain;
+    private final String azureContainer;
+    private final String azurePrefix;
+    private final String azureManagedIdentityClientId;
+    private final String azureProtocol;
+    private final int azureMaxTries;
+    private final int azureMaxListingLength;
+    private final String azureEndpointSuffix;
     private final String deepStorageType;
     private final boolean initDataSource;
     private final String version;
     private final boolean rollup;
     private final boolean useDefaultValueForNull;
+    private final boolean useThreeValueLogicForNativeFilters;
     private final String dimensionsSpec;
     private final String metricsSpec;
     private final String transformSpec;
-    private String getHdfsStorageDir;
 
     private WriterContext(CaseInsensitiveStringMap options, String version) {
         this.dataSource = getOrThrow(options, ConfKeys.DATA_SOURCE);
@@ -96,15 +112,32 @@ public class WriterContext implements Serializable {
         this.s3BaseKey = options.getOrDefault(ConfKeys.DEEP_STORAGE_S3_BASE_KEY, null);
         this.s3DisableAcl = options.getBoolean(ConfKeys.DEEP_STORAGE_S3_DISABLE_ACL, false);
         this.localDir = options.getOrDefault(ConfKeys.DEEP_STORAGE_LOCAL_DIRECTORY, null);
-        this.getHdfsStorageDir = options.getOrDefault(ConfKeys.DEEP_STORAGE_HDFS_DIRECTORY, null);
+        this.hdfsDir = options.getOrDefault(ConfKeys.DEEP_STORAGE_HDFS_STORAGE_DIRECTORY, null);
+        this.hdfsCoreSitePath = options.getOrDefault(ConfKeys.DEEP_STORAGE_HDFS_CORE_SITE_PATH, null);
+        this.hdfsHdfsSitePath = options.getOrDefault(ConfKeys.DEEP_STORAGE_HDFS_HDFS_SITE_PATH, null);
+        this.hdfsDefaultFS = options.getOrDefault(ConfKeys.DEEP_STORAGE_HDFS_DEFAULT_FS, null);
+        this.hdfsSecurityKerberosPrincipal = options.getOrDefault(ConfKeys.DEEP_STORAGE_HDFS_SECURITY_KERBEROS_PRINCIPAL, null);
+        this.hdfsSecurityKerberosKeytab = options.getOrDefault(ConfKeys.DEEP_STORAGE_HDFS_SECURITY_KERBEROS_KEYTAB, null);
+        this.azureAccount = options.getOrDefault(ConfKeys.DEEP_STORAGE_AZURE_ACCOUNT, null);
+        this.azureKey = options.getOrDefault(ConfKeys.DEEP_STORAGE_AZURE_KEY, null);
+        this.azureSharedAccessStorageToken = options.getOrDefault(ConfKeys.DEEP_STORAGE_AZURE_SHAREDACCESSSTORAGETOKEN, null);
+        this.azureUseAzureCredentialsChain = options.getBoolean(ConfKeys.DEEP_STORAGE_AZURE_USEAZURECRENDENTIALSCHAIN, false);
+        this.azureContainer = options.getOrDefault(ConfKeys.DEEP_STORAGE_AZURE_CONTAINER, null);
+        this.azurePrefix = options.getOrDefault(ConfKeys.DEEP_STORAGE_AZURE_PREFIX, "");
+        this.azureProtocol = options.getOrDefault(ConfKeys.DEEP_STORAGE_AZURE_PROTOCOL, "https");
+        this.azureMaxTries = options.getInt(ConfKeys.DEEP_STORAGE_AZURE_MAXTRIES, 3);
+        this.azureMaxListingLength = options.getInt(ConfKeys.DEEP_STORAGE_AZURE_MAXLISTINGLENGTH, 1024);
+        this.azureEndpointSuffix = options.getOrDefault(ConfKeys.DEEP_STORAGE_AZURE_ENDPOINTSUFFIX, "core.windows.net");
+        this.azureManagedIdentityClientId = options.getOrDefault(ConfKeys.DEEP_STORAGE_AZURE_MANAGEDIDENTITYCLIENTID, null);
 
         this.deepStorageType = options.getOrDefault(ConfKeys.DEEP_STORAGE_TYPE, DEFAULT_DRUID_DEEP_STORAGE_TYPE);
-        Preconditions.checkArgument(Arrays.asList("s3", "local", "hdfs").contains(this.deepStorageType),
+        Preconditions.checkArgument(Arrays.asList("s3", "hdfs", "local", "azure").contains(this.deepStorageType),
                 String.format("Invalid %s: %s", ConfKeys.DEEP_STORAGE_TYPE, this.deepStorageType));
 
         this.initDataSource = options.getBoolean(ConfKeys.DATASOURCE_INIT, false);
         this.rollup = options.getBoolean(ConfKeys.SEGMENT_ROLLUP, true);
         this.useDefaultValueForNull = options.getBoolean(ConfKeys.USE_DEFAULT_VALUES_FOR_NULL, true);
+        this.useThreeValueLogicForNativeFilters = options.getBoolean(ConfKeys.USE_THREE_VALUE_LOGIC_FOR_NATIVE_FILTERS, true);
         this.dimensionsSpec = options.getOrDefault(ConfKeys.DIMENSIONS_SPEC, null);
         this.metricsSpec = options.getOrDefault(ConfKeys.METRICS_SPEC, null);
         this.transformSpec = options.getOrDefault(ConfKeys.TRANSFORM_SPEC, null);
@@ -192,6 +225,40 @@ public class WriterContext implements Serializable {
         return localDir;
     }
 
+    public String getHdfsDir() { return hdfsDir; }
+
+    public String getHdfsCoreSitePath() { return hdfsCoreSitePath; }
+
+    public String getHdfsHdfsSitePath() { return hdfsHdfsSitePath; }
+
+    public String getHdfsDefaultFS() { return hdfsDefaultFS; }
+
+    public String getHdfsSecurityKerberosPrincipal() { return hdfsSecurityKerberosPrincipal; }
+
+    public String getHdfsSecurityKerberosKeytab() { return hdfsSecurityKerberosKeytab; }
+
+    public String getAzureAccount() { return azureAccount; }
+
+    public String getAzureKey() { return azureKey; }
+
+    public String getAzureSharedAccessStorageToken() { return azureSharedAccessStorageToken; }
+
+    public Boolean getAzureUseAzureCredentialsChain() { return azureUseAzureCredentialsChain; }
+
+    public String getAzureContainer() { return azureContainer; }
+
+    public String getAzurePrefix() { return azurePrefix; }
+
+    public String getAzureProtocol() { return azureProtocol; }
+
+    public int getAzureMaxTries() { return azureMaxTries; }
+
+    public int getAzureMaxListingLength() { return azureMaxListingLength; }
+
+    public String getAzureEndpointSuffix() {return azureEndpointSuffix; }
+
+    public String getAzureManagedIdentityClientId() {return azureManagedIdentityClientId; }
+
     public String getDeepStorageType() {
         return deepStorageType;
     }
@@ -212,12 +279,24 @@ public class WriterContext implements Serializable {
         return "hdfs".equals(deepStorageType);
     }
 
+    public boolean isAzureDeepStorage() {
+        return "azure".equals(deepStorageType);
+    }
+
+    public boolean isS3DeepStorage() {
+        return "s3".equals(deepStorageType);
+    }
+
     public boolean isRollup() {
         return rollup;
     }
 
     public boolean isUseDefaultValueForNull() {
         return useDefaultValueForNull;
+    }
+
+    public boolean isUseThreeValueLogicForNativeFilters() {
+        return useThreeValueLogicForNativeFilters;
     }
 
     public String getDimensionsSpec() {
@@ -232,11 +311,7 @@ public class WriterContext implements Serializable {
         return transformSpec;
     }
 
-    public String getHdfsStorageDir() {
-        return getHdfsStorageDir;
-    }
-
-    public static class ConfKeys {
+  public static class ConfKeys {
         public static final String DATASOURCE_INIT = "druid.datasource.init";
         // Segment config
         public static final String DATA_SOURCE = "druid.datasource";
@@ -252,6 +327,7 @@ public class WriterContext implements Serializable {
         public static final String MAX_ROWS_IN_MEMORY = "druid.memory.max_rows";
         public static final String SEGMENT_ROLLUP = "druid.segment.rollup";
         public static final String USE_DEFAULT_VALUES_FOR_NULL = "druid.use_default_values_for_null";
+        public static final String USE_THREE_VALUE_LOGIC_FOR_NATIVE_FILTERS = "druid.use_three_value_logic_for_native_filters";
         // Metadata config
         public static final String METADATA_DB_TYPE = "druid.metastore.db.type";
         public static final String METADATA_DB_URI = "druid.metastore.db.uri";
@@ -260,13 +336,30 @@ public class WriterContext implements Serializable {
         public static final String METADATA_DB_TABLE_BASE = "druid.metastore.db.table.base";
         // Deep Storage config
         public static final String DEEP_STORAGE_TYPE = "druid.segment_storage.type";
+        // HDFS config
+        public static final String DEEP_STORAGE_HDFS_STORAGE_DIRECTORY = "druid.segment_storage.hdfs.dir";
+        public static final String DEEP_STORAGE_HDFS_CORE_SITE_PATH = "druid.segment_storage.hdfs.core.site.path";
+        public static final String DEEP_STORAGE_HDFS_HDFS_SITE_PATH = "druid.segment_storage.hdfs.hdfs.site.path";
+        public static final String DEEP_STORAGE_HDFS_DEFAULT_FS = "druid.segment_storage.hdfs.default.fs";
+        public static final String DEEP_STORAGE_HDFS_SECURITY_KERBEROS_PRINCIPAL = "druid.segment_storage.hdfs.security.kerberos.principal";
+        public static final String DEEP_STORAGE_HDFS_SECURITY_KERBEROS_KEYTAB = "druid.segment_storage.hdfs.security.kerberos.keytab";
         // S3 config
         public static final String DEEP_STORAGE_S3_BUCKET = "druid.segment_storage.s3.bucket";
         public static final String DEEP_STORAGE_S3_BASE_KEY = "druid.segment_storage.s3.basekey";
         public static final String DEEP_STORAGE_S3_DISABLE_ACL = "druid.segment_storage.s3.disableacl";
         // Local config (only for testing)
         public static final String DEEP_STORAGE_LOCAL_DIRECTORY = "druid.segment_storage.local.dir";
-        // HDFS config
-        public static final String DEEP_STORAGE_HDFS_DIRECTORY = "druid.segment_storage.hdfs.dir";
+        // Azure config
+        public static final String DEEP_STORAGE_AZURE_ACCOUNT = "druid.azure.account";
+        public static final String DEEP_STORAGE_AZURE_KEY = "druid.azure.key";
+        public static final String DEEP_STORAGE_AZURE_SHAREDACCESSSTORAGETOKEN = "druid.azure.sharedAccessStorageToken";
+        public static final String DEEP_STORAGE_AZURE_USEAZURECRENDENTIALSCHAIN = "druid.azure.useAzureCredentialsChain";
+        public static final String DEEP_STORAGE_AZURE_CONTAINER = "druid.azure.container";
+        public static final String DEEP_STORAGE_AZURE_PREFIX = "druid.azure.prefix";
+        public static final String DEEP_STORAGE_AZURE_PROTOCOL = "druid.azure.protocol";
+        public static final String DEEP_STORAGE_AZURE_MAXTRIES = "druid.azure.maxTries";
+        public static final String DEEP_STORAGE_AZURE_MAXLISTINGLENGTH = "druid.azure.maxListingLength";
+        public static final String DEEP_STORAGE_AZURE_ENDPOINTSUFFIX = "druid.azure.endpointSuffix";
+        public static final String DEEP_STORAGE_AZURE_MANAGEDIDENTITYCLIENTID = "druid.azure.managedIdentityClientId";
     }
 }
